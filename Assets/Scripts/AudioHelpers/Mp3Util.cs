@@ -2,31 +2,24 @@
 using NAudio.Wave;
 using UnityEngine;
 
-namespace GameUtils
+namespace AudioHelpers
 {
     // From http://answers.unity3d.com/questions/737002/wav-byte-to-audioclip.html
     // and https://gamedev.stackexchange.com/a/114886
     // Thanks to https://github.com/nobbele for pointers on this
-    public class AudioLoader
+    public class Mp3Util
     {
         public static AudioClip GetAudio(string path)
         {
-            var extension = Path.GetExtension(path);
-            Debug.Log($"Path @ GetAudio: {path}");
-            var data = File.ReadAllBytes(path);
-
-            switch (extension)
-            {
-                case ".mp3":
-                    return GetMp3Audio(Path.GetFileName(path), data);
-                default:
-                {
-                    Debug.Log($"{extension} files not yet supported");
-                    return null;
-                }
-            }
+            // Load MP3 data and convert to WAV
+            var mp3Stream = new MemoryStream(File.ReadAllBytes(path));
+            var mp3Audio = new Mp3FileReader(mp3Stream);
+            var wav = new Wav(AudioMemStream(mp3Audio).ToArray());
+            var audioClip = AudioClip.Create(Path.GetFileName(path), wav.SampleCount, 1, wav.Frequency, false);
+            audioClip.SetData(wav.LeftChannel, 0);
+            return audioClip;
         }
-        
+
         private static MemoryStream AudioMemStream(WaveStream waveStream)
         {
             var outputStream = new MemoryStream();
@@ -42,27 +35,13 @@ namespace GameUtils
             return outputStream;
         }
 
-        private static AudioClip GetMp3Audio(string name, byte[] data)
+        private class Wav
         {
-            // Load data into a stream
-            var mp3Stream = new MemoryStream(data);
-            // Convert data to WAV format
-            var mp3Audio = new Mp3FileReader(mp3Stream);
-            // Convert to WAV data
-            var wav = new Wav(AudioMemStream(mp3Audio).ToArray());
-            Debug.Log(wav);
-            var audioClip = AudioClip.Create(name, wav.SampleCount, 1, wav.Frequency, false);
-            audioClip.SetData(wav.LeftChannel, 0);
-            return audioClip;
-        }
-        
-        public class Wav
-        {
-            public float[] LeftChannel { get; internal set; }
-            public float[] RightChannel { get; internal set; }
-            public int ChannelCount { get; internal set; }
-            public int SampleCount { get; internal set; }
-            public int Frequency { get; internal set; }
+            public float[] LeftChannel { get; }
+            public float[] RightChannel { get; }
+            public int ChannelCount { get; }
+            public int SampleCount { get; }
+            public int Frequency { get; }
 
             public Wav(byte[] wav)
             {
@@ -113,7 +92,7 @@ namespace GameUtils
                 return
                     $"[Wav: LeftChannel={LeftChannel}, RightChannel={RightChannel}, ChannelCount={ChannelCount}, SampleCount={SampleCount}, Frequency={Frequency}";
             }
-
+            
             // Convert two bytes to one float in the range -1 to 1
             private static float BytesToFloat(byte first, byte second)
             {

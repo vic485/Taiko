@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.IO;
+using AudioHelpers;
 using DataModels;
-using GameUtils;
 using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -87,9 +87,21 @@ namespace Management
                     audioSource.clip = DownloadHandlerAudioClip.GetContent(musicRequest);
                 }
             }*/
-            // TODO: Actually run this asynchronously
-            print($"Path @ LoadAudio: {Path.Combine($"file://{_beatmapFolder}", beatmap.AudioFile)}");
-            audioSource.clip = AudioLoader.GetAudio(Path.Combine(_beatmapFolder, beatmap.AudioFile));
+            var filePath = Path.Combine(_beatmapFolder, beatmap.AudioFile);
+            var extension = Path.GetExtension(beatmap.AudioFile);
+            switch (extension)
+            {
+                case ".mp3":
+                    // TODO: Actually run this asynchronously?
+                    audioSource.clip = Mp3Util.GetAudio(filePath);
+                    break;
+                case ".wav":
+                    yield return UnityAudioLoader(filePath, AudioType.WAV);
+                    break;
+                default:
+                    Debug.LogError($"{extension} file type is not yet supported.");
+                    break;
+            }
             yield return null;
         }
 
@@ -99,6 +111,23 @@ namespace Management
             videoPlayer.Prepare();
             while (!videoPlayer.isPrepared)
                 yield return null;
+        }
+
+        private IEnumerator UnityAudioLoader(string filePath, AudioType audioType)
+        {
+            using (var musicRequest = UnityWebRequestMultimedia.GetAudioClip($"file://{filePath}", audioType))
+            {
+                yield return musicRequest.SendWebRequest();
+                
+                if (musicRequest.isHttpError || musicRequest.isNetworkError)
+                {
+                    Debug.Log(musicRequest.error);
+                }
+                else
+                {
+                    audioSource.clip = DownloadHandlerAudioClip.GetContent(musicRequest);
+                }
+            }
         }
     }
 
